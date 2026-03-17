@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import folium
-from streamlit_folium import st_folium
 from folium.plugins import MarkerCluster
+import streamlit.components.v1 as components
 
 # 1. 페이지 기본 설정
 st.set_page_config(page_title="Youth Canvas", layout="wide")
@@ -48,8 +48,8 @@ with col1:
             tooltip=row['시설명']
         ).add_to(marker_cluster)
         
-    # Streamlit 화면에 지도 띄우기
-    st_folium(m, width=700, height=500)
+    # 에러 없이 안전하게 지도 HTML로 렌더링 (수정된 핵심 부분)
+    components.html(m._repr_html_(), width=700, height=500)
 
 with col2:
     st.subheader(f"📊 {selected_year}년 {selected_indicator} 비율")
