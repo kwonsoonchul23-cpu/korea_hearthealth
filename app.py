@@ -8,7 +8,7 @@ from folium.plugins import MarkerCluster
 st.set_page_config(page_title="Youth Canvas", layout="wide")
 st.title("Youth Canvas: 우리 동네 청소년 안전·마음건강 대시보드")
 st.markdown("**제7차 청소년정책기본계획** 기반 지역사회 청소년 인프라 및 마음건강 분석 프로젝트")
-st.divider()
+st.markdown("---")
 
 # 2. 데이터 불러오기 (캐싱으로 로딩 속도 최적화)
 @st.cache_data
