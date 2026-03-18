@@ -118,7 +118,9 @@ with st.sidebar:
     st.markdown('<div style="text-align:center; font-size:3rem; margin-bottom:-10px;">🌌</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center; font-size:1.2rem; font-weight:700; color:#5865F2;">Youth Canvas</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center; font-size:0.8rem; color:#8F95B2; margin-bottom:20px;">청소년 인프라·마음건강 분석</div>', unsafe_allow_html=True)
-    st.divider()
+    
+    # 에러의 원인이었던 st.divider()를 안전한 명령어로 교체!
+    st.markdown("---")
     
     region_coords = {
         "전국": [36.5, 127.5], "서울특별시": [37.5665, 126.9780], "부산광역시": [35.1796, 129.0756],
@@ -163,7 +165,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 4. 탭(Tab) 레이아웃 구성
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-tab1, tab2, tab3 = st.tabs(["🗺️ 3D 입체 안전망 지도", "📊 마음건강 심층 분석", "🚦 교통사고 다발 구역 (준비중)"])
+tab1, tab2, tab3 = st.tabs(["🗺️ 3D 입체 안전망 지도", "📊 마음건강 심층 분석", "🚦 교통사고 다발 구역 (데이터 대기중)"])
 
 # ──────────────────────────────────────────────
 # 탭 1: 3D 입체 안전망 지도
@@ -181,7 +183,7 @@ with tab1:
     map_center = region_coords[selected_region]
     zoom_level = 6.5 if selected_region == "전국" else 10.5
 
-    # 가상 위험 데이터 생성 (추후 교통사고 데이터로 교체될 영역)
+    # 가상 위험 데이터 생성
     np.random.seed(42)
     num_danger = 800 if selected_region == "전국" else 150
     lat_var, lon_var = (1.5, 1.5) if selected_region == "전국" else (0.05, 0.05)
@@ -203,7 +205,7 @@ with tab1:
             elevation_scale=50 if selected_region == "전국" else 15,
             elevation_range=[0, 1000],
             extruded=True,
-            get_fill_color="[255, 75, 75, 200]", # 다크테마에 어울리는 네온 레드
+            get_fill_color="[255, 75, 75, 200]",
             pickable=False
         ))
 
@@ -213,7 +215,7 @@ with tab1:
             data=fac_chart_data,
             get_position=["경도", "위도"],
             get_radius=1500 if selected_region == "전국" else 300,
-            get_fill_color=[0, 240, 255, 200], # 네온 시안(Cyan) 색상
+            get_fill_color=[0, 240, 255, 200],
             pickable=True,
         ))
 
@@ -227,7 +229,7 @@ with tab1:
     )
 
     st.pydeck_chart(pdk.Deck(
-        map_style="mapbox://styles/mapbox/dark-v10", # 다크 테마 지도로 변경
+        map_style="mapbox://styles/mapbox/dark-v10",
         layers=layers,
         initial_view_state=view_state,
         tooltip={"html": "<div style='color:white;'><b>🛡️ 안전망:</b> {시설명}</div>"}
