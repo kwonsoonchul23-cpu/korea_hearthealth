@@ -59,7 +59,7 @@ col1, col2 = st.columns([6, 4])
 
 with col1:
     st.subheader(f"🗺️ {selected_region} 3D 위험 구역 및 안전망 시각화")
-    st.caption("💡 마우스 **우클릭 후 드래그**하면 지도를 3D로 기울이거나 회전할 수 있습니다.")
+    st.caption("💡 마우스 **우클릭 후 드래그**하면 지도를 3D로 회전할 수 있습니다.")
     
     map_center = region_coords[selected_region]
     zoom_level = 6.5 if selected_region == "전국" else 10.5
@@ -78,12 +78,11 @@ with col1:
         "경도": np.random.normal(map_center[1], lon_var, num_danger).astype(float)
     })
 
-    # 🚨 [핵심 해결] Pandas 직렬화 에러를 막기 위해 순수 Python 리스트 형태로 변환
+    # Pandas 직렬화 에러를 막기 위해 순수 Python 리스트 형태로 변환
     fac_chart_data = fac_filtered[['경도', '위도', '시설명']].to_dict(orient='records')
     danger_chart_data = danger_df[['경도', '위도']].to_dict(orient='records')
 
     # [PyDeck 레이어 1] 붉은색 3D 육각 기둥 (위험 지역)
-    # HexagonLayer는 밀도에 따라 자동 배색되므로 get_fill_color 속성 제거
     layer_danger_hex = pdk.Layer(
         "HexagonLayer",
         data=danger_chart_data,
@@ -105,10 +104,13 @@ with col1:
         pickable=True,
     )
 
+    # 🚨 [핵심 해결] 줌 아웃 제한(min_zoom 설정)으로 대한민국 영토 밖으로 벗어남 방지
     view_state = pdk.ViewState(
         longitude=map_center[1],
         latitude=map_center[0],
         zoom=zoom_level,
+        min_zoom=6.5,  # 세계지도가 보이지 않도록 최소 축소율 잠금
+        max_zoom=15.0, # 너무 과하게 확대되는 것도 방지
         pitch=50,
         bearing=0
     )
