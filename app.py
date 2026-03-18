@@ -2,141 +2,27 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 import plotly.express as px
-import plotly.graph_objects as go
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import box
 import json
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 1. 페이지 설정 및 프리미엄 다크 테마 CSS
+# 1. 페이지 기본 설정 (가장 먼저 와야 함)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.set_page_config(page_title="Youth Canvas", layout="wide", initial_sidebar_state="expanded")
 
-# 🚨 Mapbox 토큰 (st.secrets 금고에서 안전하게 불러옴)
-MAPBOX_TOKEN = st.secrets["MAPBOX_TOKEN"]
-
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* ── 프리미엄 KPI 카드 ── */
-.kpi-card {
-    background: linear-gradient(135deg, #1A1C23 0%, #111318 100%);
-    border: 1px solid rgba(88, 101, 242, 0.2);
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 30px rgba(88, 101, 242, 0.3);
-    border-color: rgba(88, 101, 242, 0.5);
-}
-.kpi-icon { font-size: 1.8rem; margin-bottom: 5px; }
-.kpi-label { color: #8F95B2; font-size: 0.9rem; font-weight: 500; margin-bottom: 5px; }
-.kpi-value { font-size: 1.8rem; font-weight: 700; color: #FFFFFF; }
-
-/* ── 그라데이션 타이틀 ── */
-.gradient-title {
-    background: linear-gradient(120deg, #5865F2 0%, #00F0FF 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 2.2rem;
-    font-weight: 700;
-    margin-bottom: 0.2rem;
-}
-.section-header {
-    color: #00F0FF;
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin: 1.5rem 0 1rem 0;
-    padding-left: 10px;
-    border-left: 4px solid #5865F2;
-}
-
-/* ── 탭 디자인 ── */
-.stTabs [data-baseweb="tab-list"] {
-    background-color: rgba(26, 28, 35, 0.5);
-    border-radius: 12px;
-    padding: 5px;
-    gap: 10px;
-}
-.stTabs [data-baseweb="tab"] { padding: 10px 20px; border-radius: 8px; font-weight: 600; }
-.stTabs [aria-selected="true"] { background-color: rgba(88, 101, 242, 0.2) !important; }
-</style>
-""", unsafe_allow_html=True)
-
-DARK_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#8F95B2", size=12),
-    margin=dict(l=20, r=20, t=40, b=20),
-    xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.05)")
-)
-
-def apply_dark(fig):
-    fig.update_layout(**DARK_LAYOUT)
-    return fig
-
-def kpi_card(icon, label, value):
-    st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-icon">{icon}</div>
-        <div class="kpi-label">{label}</div>
-        <div class="kpi-value">{value}</div>
-    </div>""", unsafe_allow_html=True)
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 2. 데이터 및 지형 마스크 불러오기
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-@st.cache_data
-def load_data():
-    fac_df = pd.read_csv("clean_facility.csv")
-    mind_df = pd.read_csv("clean_mind_health.csv")
-    
-    mind_df['지역명'] = mind_df['지역명'].astype(str)
-    mind_df['지표명'] = mind_df['지표명'].astype(str)
-    mind_df['연도'] = mind_df['연도'].astype(int).astype(str) 
-    mind_df['비율(%)'] = pd.to_numeric(mind_df['비율(%)'], errors='coerce')
-    
-    fac_df['시도명'] = fac_df['시도명'].astype(str)
-    fac_df['위도'] = pd.to_numeric(fac_df['위도'], errors='coerce').astype(float)
-    fac_df['경도'] = pd.to_numeric(fac_df['경도'], errors='coerce').astype(float)
-    
-    return fac_df.dropna(subset=['위도', '경도']), mind_df.dropna(subset=['비율(%)'])
-
-@st.cache_resource
-def get_korea_geometry():
-    url = "https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea_provinces_geo_simple.json"
-    try:
-        kr_gdf = gpd.read_file(url)
-        kr_geom = kr_gdf.geometry.unary_union 
-        world_box = box(-180, -90, 180, 90)
-        mask_geom = world_box.difference(kr_geom)
-        mask_gdf = gpd.GeoDataFrame(geometry=[mask_geom], crs="EPSG:4326")
-        mask_json = json.loads(mask_gdf.to_json())
-        return mask_json, kr_geom
-    except Exception as e:
-        return None, None
-
-fac_df, mind_df = load_data()
-mask_json, kr_geom = get_korea_geometry()
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 3. 사이드바 및 헤더 영역
+# 2. 사이드바 - 테마 선택 및 필터 (첨부파일의 고도화된 UI 적용)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with st.sidebar:
     st.markdown('<div style="text-align:center; font-size:3rem; margin-bottom:-10px;">🌌</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center; font-size:1.2rem; font-weight:700; color:#5865F2;">Youth Canvas</div>', unsafe_allow_html=True)
-    st.markdown('<div style="text-align:center; font-size:0.8rem; color:#8F95B2; margin-bottom:20px;">청소년 인프라·마음건강 분석</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center; font-size:0.8rem; color:gray; margin-bottom:20px;">청소년 인프라·마음건강 분석</div>', unsafe_allow_html=True)
+    
+    # 🎨 [핵심 업데이트] 전체 사이트 색상 모드 선택
+    st.header("🎨 테마 설정")
+    theme_choice = st.radio("모드를 선택하세요", ["다크 모드", "라이트 모드"])
     st.markdown("---")
     
     region_coords = {
@@ -150,61 +36,143 @@ with st.sidebar:
     
     st.header("🔍 데이터 필터")
     selected_region = st.selectbox("📍 분석할 지역 선택", list(region_coords.keys()))
-    year_list = sorted(mind_df['연도'].unique(), reverse=True)
+    
+    # 임시 연도/지표 (데이터 로드 전 미리 선언)
+    year_list = ['2024', '2023', '2022', '2021']
+    indicator_list = ['우울감', '스트레스', '자살시도율']
     selected_year = st.selectbox("📅 연도 선택", year_list)
-    indicator_list = mind_df['지표명'].unique()
     selected_indicator = st.selectbox("🧠 마음건강 지표 선택", indicator_list)
 
-st.markdown('<div class="gradient-title">Youth Canvas: 통합 분석 대시보드</div>', unsafe_allow_html=True)
-st.markdown("<span style='color:#8F95B2;'>제7차 청소년정책기본계획 기반 지역사회 청소년 인프라 및 심리적/물리적 안전망 분석</span>", unsafe_allow_html=True)
-st.markdown("<br>", unsafe_allow_html=True)
-
-filtered_mind_year = mind_df[(mind_df['연도'] == selected_year) & (mind_df['지표명'] == selected_indicator)]
-if selected_region == "전국":
-    fac_filtered = fac_df.copy()
-    avg_mind = filtered_mind_year['비율(%)'].mean()
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 3. 테마에 따른 동적 변수 할당 (CSS, 배경색, 지도 스타일)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+if theme_choice == "다크 모드":
+    bg_color = "#0E1117"
+    text_color = "#FFFFFF"
+    card_bg = "linear-gradient(135deg, #1A1C23 0%, #111318 100%)"
+    map_style = "dark"
+    mask_color = [14, 17, 23, 255] # 스트림릿 다크 배경과 완벽히 일치하는 색상
+    plotly_theme = "plotly_dark"
+    safe_color = [0, 240, 255, 200]
 else:
-    fac_filtered = fac_df[fac_df['시도명'].str.contains(selected_region[:2], na=False)].copy()
-    target_mind = filtered_mind_year[filtered_mind_year['지역명'].str.contains(selected_region[:2], na=False)]
-    avg_mind = target_mind['비율(%)'].mean() if not target_mind.empty else 0
+    bg_color = "#FFFFFF"
+    text_color = "#2C3E50"
+    card_bg = "linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%)"
+    map_style = "light"
+    mask_color = [255, 255, 255, 255] # 스트림릿 라이트 배경과 완벽히 일치하는 색상
+    plotly_theme = "plotly_white"
+    safe_color = [0, 120, 255, 200]
+
+# 동적 CSS 주입
+st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
+.kpi-card {{
+    background: {card_bg};
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 12px; padding: 20px; text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}}
+.kpi-value {{ font-size: 1.8rem; font-weight: 700; color: {text_color}; }}
+.kpi-label {{ color: gray; font-size: 0.9rem; font-weight: 500; }}
+.gradient-title {{
+    background: linear-gradient(120deg, #5865F2 0%, #00F0FF 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    font-size: 2.2rem; font-weight: 700; margin-bottom: 0.2rem;
+}}
+.section-header {{
+    color: #5865F2; font-size: 1.2rem; font-weight: 600; margin: 1.5rem 0 1rem 0;
+    padding-left: 10px; border-left: 4px solid #5865F2;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 4. 데이터 및 공간 마스크(가림막) 로드
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@st.cache_data
+def load_data():
+    try:
+        fac_df = pd.read_csv("clean_facility.csv")
+        mind_df = pd.read_csv("clean_mind_health.csv")
+        mind_df['비율(%)'] = pd.to_numeric(mind_df['비율(%)'], errors='coerce')
+        fac_df['위도'] = pd.to_numeric(fac_df['위도'], errors='coerce').astype(float)
+        fac_df['경도'] = pd.to_numeric(fac_df['경도'], errors='coerce').astype(float)
+        return fac_df.dropna(subset=['위도', '경도']), mind_df.dropna(subset=['비율(%)'])
+    except:
+        return pd.DataFrame(), pd.DataFrame()
+
+@st.cache_resource
+def get_korea_geometry():
+    url = "https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea_provinces_geo_simple.json"
+    try:
+        kr_gdf = gpd.read_file(url)
+        kr_geom = kr_gdf.geometry.unary_union 
+        world_box = box(-180, -90, 180, 90)
+        # 🚨 전 세계를 덮는 이불(world_box)에서 대한민국(kr_geom)만 빵꾸를 뚫음!
+        mask_geom = world_box.difference(kr_geom)
+        mask_gdf = gpd.GeoDataFrame(geometry=[mask_geom], crs="EPSG:4326")
+        return json.loads(mask_gdf.to_json()), kr_geom
+    except Exception as e:
+        return None, None
+
+fac_df, mind_df = load_data()
+mask_json, kr_geom = get_korea_geometry()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 5. 본문 대시보드 렌더링
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+st.markdown('<div class="gradient-title">Youth Canvas: 통합 분석 대시보드</div>', unsafe_allow_html=True)
+st.markdown("<span style='color:gray;'>지역사회 청소년 인프라 및 심리적/물리적 안전망 분석 (다크/라이트 모드 지원)</span><br><br>", unsafe_allow_html=True)
+
+# KPI 카드 생성
+def kpi_card(icon, label, value):
+    st.markdown(f'<div class="kpi-card"><div style="font-size: 1.8rem;">{icon}</div><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div></div>', unsafe_allow_html=True)
+
+if not fac_df.empty and not mind_df.empty:
+    if selected_region == "전국":
+        fac_filtered = fac_df.copy()
+        avg_mind = mind_df[mind_df['지표명'] == selected_indicator]['비율(%)'].mean()
+    else:
+        fac_filtered = fac_df[fac_df['시도명'].str.contains(selected_region[:2], na=False)].copy()
+        avg_mind = mind_df[(mind_df['지역명'].str.contains(selected_region[:2], na=False)) & (mind_df['지표명'] == selected_indicator)]['비율(%)'].mean()
+else:
+    fac_filtered = pd.DataFrame([{"위도": 37.5, "경도": 127.0, "시설명": "데모 데이터"}])
+    avg_mind = 0
 
 k1, k2, k3 = st.columns(3)
-with k1:
-    kpi_card("📍", "선택된 지역", selected_region)
-with k2:
-    kpi_card("🛡️", "청소년 수련시설 (안전망)", f"{len(fac_filtered):,}개")
-with k3:
-    kpi_card("🧠", f"{selected_indicator} 평균 ({selected_year})", f"{avg_mind:.1f}%")
+with k1: kpi_card("📍", "선택된 지역", selected_region)
+with k2: kpi_card("🛡️", "청소년 수련시설 (안전망)", f"{len(fac_filtered):,}개")
+with k3: kpi_card("🧠", f"{selected_indicator} 평균 ({selected_year})", f"{avg_mind:.1f}%" if not pd.isna(avg_mind) else "데이터 없음")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["🗺️ 3D 입체 안전망 및 지형 지도", "📊 마음건강 심층 분석", "🚦 교통사고 다발 구역 (데이터 대기중)"])
+# 탭 구성
+tab1, tab2, tab3 = st.tabs(["🗺️ 3D 입체 안전망 지도 (대한민국 전용)", "📊 마음건강 심층 분석", "🚦 교통사고 다발 구역 (준비중)"])
 
 # ──────────────────────────────────────────────
-# 탭 1: 3D 입체 안전망 및 지형 지도
+# 탭 1: 3D 입체 지도 (대한민국 외 지역 완벽 차단)
 # ──────────────────────────────────────────────
 with tab1:
-    st.markdown('<div class="section-header">위험 구역 vs 지역사회 안전망 3D 뷰</div>', unsafe_allow_html=True)
-    st.caption("💡 마우스 **우클릭 후 드래그**하면 지도를 3D로 기울여 입체적인 데이터를 확인할 수 있습니다.")
+    st.markdown('<div class="section-header">위험 구역 vs 청소년 안전망 3D 뷰</div>', unsafe_allow_html=True)
+    st.caption("💡 마우스를 우클릭 후 드래그하여 지도를 입체적으로 확인하세요.")
     
     legend_col1, legend_col2 = st.columns(2)
-    with legend_col1:
-        show_danger = st.checkbox("🔴 유해환경/위험구역 (3D 기둥) 켜기", value=True)
-    with legend_col2:
-        show_safe = st.checkbox("🔵 청소년 수련시설 (안전 마커) 켜기", value=True)
+    with legend_col1: show_danger = st.checkbox("🔴 유해환경/위험구역 (3D 기둥) 켜기", value=True)
+    with legend_col2: show_safe = st.checkbox("🔵 청소년 수련시설 (안전 마커) 켜기", value=True)
 
     map_center = region_coords[selected_region]
-    zoom_level = 6.8 if selected_region == "전국" else 11.0
-    min_zoom_lock = 6.8
+    zoom_level = 6.5 if selected_region == "전국" else 10.5
 
+    # 가상 위험 데이터 생성
     np.random.seed(42)
-    num_danger = 800 if selected_region == "전국" else 150
-    lat_var, lon_var = (1.5, 1.5) if selected_region == "전국" else (0.05, 0.05)
     danger_df = pd.DataFrame({
-        "위도": np.random.normal(map_center[0], lat_var, num_danger).astype(float),
-        "경도": np.random.normal(map_center[1], lon_var, num_danger).astype(float)
+        "위도": np.random.normal(map_center[0], 1.5 if selected_region == "전국" else 0.05, 800 if selected_region == "전국" else 150).astype(float),
+        "경도": np.random.normal(map_center[1], 1.5 if selected_region == "전국" else 0.05, 800 if selected_region == "전국" else 150).astype(float)
     })
 
+    # 바다에 빠진 데이터 삭제
     if kr_geom is not None:
         danger_gdf = gpd.GeoDataFrame(danger_df, geometry=gpd.points_from_xy(danger_df['경도'], danger_df['위도']), crs="EPSG:4326")
         danger_gdf = danger_gdf[danger_gdf.geometry.within(kr_geom)]
@@ -216,11 +184,12 @@ with tab1:
 
     layers = []
     
+    # 🚨 [핵심 해결] 스트림릿 테마 배경색과 똑같은 거대한 이불로 전 세계를 덮음! (한국만 뚫려있음)
     if mask_json is not None:
         layers.append(pdk.Layer(
             "GeoJsonLayer",
             mask_json,
-            get_fill_color=[14, 17, 23, 255], 
+            get_fill_color=mask_color, # 다크모드면 검정, 라이트모드면 하양
             stroked=False,
             pickable=False
         ))
@@ -234,7 +203,7 @@ with tab1:
             elevation_scale=50 if selected_region == "전국" else 15,
             elevation_range=[0, 1000],
             extruded=True,
-            get_fill_color="[255, 75, 75, 200]",
+            get_fill_color=[255, 75, 75, 200],
             pickable=False
         ))
 
@@ -244,7 +213,7 @@ with tab1:
             data=fac_chart_data,
             get_position=["경도", "위도"],
             get_radius=1500 if selected_region == "전국" else 300,
-            get_fill_color=[0, 240, 255, 200], 
+            get_fill_color=safe_color, 
             pickable=True,
         ))
 
@@ -252,98 +221,55 @@ with tab1:
         longitude=map_center[1],
         latitude=map_center[0],
         zoom=zoom_level,
-        min_zoom=min_zoom_lock,
+        min_zoom=6.5, # 축소 한계
         max_zoom=15.0,
-        pitch=60,
+        pitch=50,
         bearing=0
     )
 
-    # 🚨 [완벽 수정] 에러를 일으킨 effects 옵션을 깨끗하게 제거했습니다.
     st.pydeck_chart(pdk.Deck(
-        map_provider="mapbox",
-        map_style="mapbox://styles/mapbox/dark-v11",
-        api_keys={'mapbox': MAPBOX_TOKEN}, 
+        map_style=map_style, # 테마에 맞춰 'dark' 또는 'light'로 자동 변경
         layers=layers,
         initial_view_state=view_state,
         tooltip={"html": "<div style='color:white; font-size:12px;'><b>🛡️ 안전망:</b> {시설명}</div>"}
     ))
 
-    with st.expander("💡 3D 지도 해석 가이드 보기"):
-        st.markdown("""
-        * 🔴 **붉은 기둥**: 사고 다발 지역 등 위험 요소입니다. 
-        * 🔵 **푸른 마커**: 청소년 보호 인프라(시설)입니다.
-        * **피해야 할 구역**: 골목과 도로망을 확인하고, 위험 기둥이 밀집한 구역을 피해가는 경로를 고민해보세요.
-        """)
-
 # ──────────────────────────────────────────────
-# 탭 2: 마음건강 심층 분석
+# 탭 2: 마음건강 심층 분석 (Plotly 테마 동적 변경)
 # ──────────────────────────────────────────────
 with tab2:
     st.markdown('<div class="section-header">인프라와 마음건강의 상관관계 분석</div>', unsafe_allow_html=True)
     
-    row1_col1, row1_col2 = st.columns([5, 5])
-    
-    with row1_col1:
-        st.markdown(f"**📊 지역별 {selected_indicator} 수준 비교**")
-        mind_sorted = filtered_mind_year.sort_values(by="비율(%)", ascending=True)
-        mind_sorted['선택 여부'] = mind_sorted['지역명'].apply(lambda x: '선택 지역' if selected_region != "전국" and x[:2] in selected_region else '타 지역')
+    if not mind_df.empty:
+        row1_col1, row1_col2 = st.columns([5, 5])
         
-        fig_bar = px.bar(mind_sorted, x="비율(%)", y="지역명", orientation='h', color='선택 여부', 
-                         color_discrete_map={'선택 지역': '#00F0FF', '타 지역': '#394263'})
-        fig_bar.update_layout(height=350, showlegend=False)
-        st.plotly_chart(apply_dark(fig_bar), use_container_width=True)
+        with row1_col1:
+            st.markdown(f"**📊 지역별 {selected_indicator} 수준 비교**")
+            mind_sorted = mind_df[mind_df['지표명'] == selected_indicator].copy()
+            mind_sorted['선택 여부'] = mind_sorted['지역명'].apply(lambda x: '선택 지역' if selected_region != "전국" and x[:2] in selected_region else '타 지역')
+            fig_bar = px.bar(mind_sorted, x="비율(%)", y="지역명", orientation='h', color='선택 여부', color_discrete_map={'선택 지역': '#00F0FF', '타 지역': 'gray'})
+            fig_bar.update_layout(template=plotly_theme, height=350, showlegend=False)
+            st.plotly_chart(fig_bar, use_container_width=True)
 
-    with row1_col2:
-        st.markdown(f"**📈 5년간 {selected_indicator} 변화 추이**")
-        target_region = mind_df['지역명'].iloc[0] if selected_region == "전국" else selected_region[:2]
-        matched_regions = mind_df[mind_df['지역명'].str.contains(target_region)]['지역명']
-        final_target = matched_regions.iloc[0] if not matched_regions.empty else mind_df['지역명'].iloc[0]
-        
-        trend_df = mind_df[(mind_df['지역명'] == final_target) & (mind_df['지표명'] == selected_indicator)].sort_values('연도')
-        fig_line = px.line(trend_df, x="연도", y="비율(%)", markers=True, color_discrete_sequence=['#5865F2'])
-        fig_line.update_traces(marker=dict(size=10, color='#00F0FF'))
-        fig_line.update_layout(height=350, hovermode="x unified")
-        st.plotly_chart(apply_dark(fig_line), use_container_width=True)
-
-    row2_col1, row2_col2 = st.columns([5, 5])
-    
-    with row2_col1:
-        st.markdown("**🍩 지역 내 시설 분포 (불균형 확인)**")
-        if not fac_filtered.empty:
-            pie_df = fac_filtered['시군구명'].value_counts().reset_index()
-            pie_df.columns = ['시군구명', '시설 수']
-            if len(pie_df) > 5:
-                pie_df = pd.concat([pie_df.iloc[:5], pd.DataFrame([['나머지 지역', pie_df['시설 수'].iloc[5:].sum()]], columns=['시군구명', '시설 수'])])
-            fig_pie = px.pie(pie_df, values='시설 수', names='시군구명', hole=0.5, color_discrete_sequence=px.colors.sequential.Agal)
-            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            fig_pie.update_layout(height=350, showlegend=False)
-            st.plotly_chart(apply_dark(fig_pie), use_container_width=True)
-
-    with row2_col2:
-        st.markdown(f"**🌌 시설 수와 {selected_indicator}의 상관관계**")
-        fac_count = fac_df['시도명'].value_counts().reset_index()
-        fac_count.columns = ['지역명_원본', '시설 수']
-        fac_count.loc[:, '지역명_축약'] = fac_count['지역명_원본'].str[:2]
-        mind_scatter = filtered_mind_year.copy()
-        mind_scatter.loc[:, '지역명_축약'] = mind_scatter['지역명'].str[:2]
-        scatter_df = pd.merge(mind_scatter, fac_count, on='지역명_축약', how='inner')
-        
-        if not scatter_df.empty:
-            fig_scatter = px.scatter(scatter_df, x="시설 수", y="비율(%)", hover_name="지역명", size="시설 수", size_max=20, color_discrete_sequence=['#00F0FF'])
-            fig_scatter.update_layout(height=350)
-            st.plotly_chart(apply_dark(fig_scatter), use_container_width=True)
+        with row1_col2:
+            st.markdown(f"**📈 5년간 {selected_indicator} 변화 추이**")
+            fig_line = px.line(mind_df[mind_df['지표명'] == selected_indicator], x="연도", y="비율(%)", color="지역명", markers=True)
+            fig_line.update_layout(template=plotly_theme, height=350)
+            st.plotly_chart(fig_line, use_container_width=True)
+    else:
+        st.info("데이터를 불러오는 중입니다.")
 
 # ──────────────────────────────────────────────
-# 탭 3: 교통사고 다발 구역 (데이터 수집 완료 시 연동)
+# 탭 3: 교통사고 다발 구역 
 # ──────────────────────────────────────────────
 with tab3:
     st.markdown('<div class="section-header">🚦 사상자 연령대별 교통사고 심층 분석</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background-color:rgba(88, 101, 242, 0.1); padding:30px; border-radius:12px; text-align:center; border: 1px dashed rgba(88, 101, 242, 0.5);">
-        <h2 style="color:#00F0FF; margin-bottom:10px;">데이터 적재 대기 중... ⏳</h2>
-        <p style="color:#8F95B2; font-size:1.1rem;">
-        현재 TAAS(교통사고분석시스템)에서 <strong>2021년~2024년 전국 사상자 연령대별 교통사고 데이터</strong>를 수집 중입니다.<br>
-        수집 및 정제가 완료되는 대로 해당 탭에 <strong>연령별 취약 구역 타임라인 추이</strong>와 <strong>사고 다발 히트맵</strong>이 연동될 예정입니다.
+    st.markdown(f"""
+    <div style="background-color:rgba(88, 101, 242, 0.1); padding:30px; border-radius:12px; text-align:center; border: 1px dashed #5865F2;">
+        <h2 style="color:#5865F2; margin-bottom:10px;">데이터 적재 대기 중... ⏳</h2>
+        <p style="color:gray; font-size:1.1rem;">
+        현재 TAAS에서 <strong>2021년~2024년 교통사고 데이터</strong>를 수집 중입니다.<br>
+        완료되는 대로 연령별 취약 구역 추이와 3D 히트맵이 연동됩니다.
         </p>
     </div>
     """, unsafe_allow_html=True)
