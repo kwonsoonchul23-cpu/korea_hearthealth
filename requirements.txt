@@ -1,6 +1,6 @@
 pandas
 streamlit
 pydeck
-streamlit-folium
-altair<5
 plotly
+geopandas
+shapely
