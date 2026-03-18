@@ -69,10 +69,7 @@ with col1:
     else:
         fac_filtered = fac_df.copy()
 
-    # [에러 해결] 좌표를 배열(List)로 명확히 묶어주는 coord 컬럼 생성
-    fac_filtered['coord'] = fac_filtered.apply(lambda row: [float(row['경도']), float(row['위도'])], axis=1)
-
-    # 가상의 위험 지역 데이터 생성 (실제 데이터 도입 시 교체될 부분)
+    # 가상의 위험 지역 데이터 생성
     np.random.seed(42)
     num_danger = 800 if selected_region == "전국" else 150
     lat_var, lon_var = (1.5, 1.5) if selected_region == "전국" else (0.05, 0.05)
@@ -80,27 +77,29 @@ with col1:
         "위도": np.random.normal(map_center[0], lat_var, num_danger).astype(float),
         "경도": np.random.normal(map_center[1], lon_var, num_danger).astype(float)
     })
-    danger_df['coord'] = danger_df.apply(lambda row: [float(row['경도']), float(row['위도'])], axis=1)
+
+    # 🚨 [핵심 해결] Pandas 직렬화 에러를 막기 위해 순수 Python 리스트 형태로 변환
+    fac_chart_data = fac_filtered[['경도', '위도', '시설명']].to_dict(orient='records')
+    danger_chart_data = danger_df[['경도', '위도']].to_dict(orient='records')
 
     # [PyDeck 레이어 1] 붉은색 3D 육각 기둥 (위험 지역)
+    # HexagonLayer는 밀도에 따라 자동 배색되므로 get_fill_color 속성 제거
     layer_danger_hex = pdk.Layer(
         "HexagonLayer",
-        data=danger_df,
-        get_position="coord", # 수정된 좌표 지정 방식
+        data=danger_chart_data,
+        get_position=["경도", "위도"],
         radius=1500 if selected_region == "전국" else 300,
         elevation_scale=50 if selected_region == "전국" else 15,
         elevation_range=[0, 1000],
         extruded=True,
-        get_fill_color=[220, 50, 50, 180], 
-        coverage=1,
         pickable=False
     )
 
     # [PyDeck 레이어 2] 파란색 점 (청소년 안전망)
     layer_safe_scatter = pdk.Layer(
         "ScatterplotLayer",
-        data=fac_filtered,
-        get_position="coord", # 수정된 좌표 지정 방식
+        data=fac_chart_data,
+        get_position=["경도", "위도"],
         get_radius=1500 if selected_region == "전국" else 300,
         get_fill_color=[50, 150, 255, 200],
         pickable=True,
@@ -124,32 +123,32 @@ with col1:
     # 💡 지도 해석 가이드
     st.info("""
     **🧭 지도 분석 가이드: 무엇을 봐야 할까요?**
-    * 🚨 **붉은색 육각 기둥**: 유해업소, 사고 다발 지역 등 **청소년 위험 요소가 밀집된 곳**입니다. 기둥이 높게 솟을수록 위험도가 심각합니다.
+    * 🚨 **육각 기둥**: 교통사고 다발 구역, 유해업소 등 **청소년 위험 요소가 밀집된 곳**입니다. 붉은색으로 솟아오를수록 위험도가 심각합니다.
     * 🔵 **파란색 마커**: 청소년 수련시설 및 복지센터 등 **지역사회의 방어망(안전지대)**입니다.
-    * **✅ 긍정적 지점**: 붉은 기둥 주변이나 사이사이에 파란 마커가 잘 분포되어 있다면, 위험 구역에 적절한 안전 인프라가 구축되어 있다는 뜻입니다.
-    * **⚠️ 부정적 지점**: 거대한 붉은 기둥만 있고 파란 마커가 텅 비어있는 지역은 **'보호 사각지대'**입니다. 가장 시급하게 정책적 지원과 시설 확충이 필요한 곳입니다.
+    * **✅ 긍정적 지점**: 육각 기둥 주변에 파란 마커가 잘 분포되어 있다면, 위험 구역에 적절한 보호 인프라가 구축되어 있다는 뜻입니다.
+    * **⚠️ 부정적 지점**: 거대한 붉은 기둥만 있고 파란 마커가 텅 비어있는 지역은 **'보호 사각지대'**입니다. 정책적 지원이 가장 시급한 곳입니다.
     """)
 
 with col2:
-    st.subheader(f"📊 {selected_year}년 지역별 {selected_indicator} 비교")
+    st.subheader(f"📊 지역별 {selected_indicator} 수준 비교 ({selected_year}년)")
     filtered_mind_year = mind_df[(mind_df['연도'] == selected_year) & (mind_df['지표명'] == selected_indicator)]
     mind_sorted = filtered_mind_year.sort_values(by="비율(%)", ascending=True)
     mind_sorted['color'] = mind_sorted['지역명'].apply(
         lambda x: '#e74c3c' if selected_region != "전국" and x[:2] in selected_region else '#bdc3c7'
     )
     fig_bar = px.bar(mind_sorted, x="비율(%)", y="지역명", orientation='h', color='color', color_discrete_map="identity")
-    fig_bar.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=400)
+    fig_bar.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=400)
     st.plotly_chart(fig_bar, use_container_width=True)
     
     # 💡 막대그래프 해석 가이드
     st.success("""
     **📊 순위 비교 가이드: 우리 동네의 현주소**
-    * 붉은색으로 강조된 우리가 선택한 지역이 타지역 대비 어느 위치에 있는지 확인합니다.
-    * 스트레스, 우울감, 자살 시도율은 **막대기가 짧을수록(수치가 낮을수록) 긍정적**입니다. 만약 우리 지역이 가장 긴 막대 그룹에 속해 있다면, 지역적 특성에 기인한 강력한 원인(학업, 환경 등)이 숨어있다는 뜻입니다.
+    * 붉은색으로 강조된 우리가 선택한 지역이 타지역 대비 어느 위치에 있는지 비교합니다.
+    * 스트레스, 우울감, 자살 시도율은 **막대기가 짧을수록 긍정적**입니다. 우리 지역이 가장 긴 그룹에 있다면 지역적 특성에 기인한 원인이 숨어있다는 경고입니다.
     """)
 
 st.markdown("---")
-st.subheader("📈 다각적 데이터 심층 분석 (원인과 결과 찾기)")
+st.subheader("📈 인프라와 마음건강의 상관관계 다각적 분석")
 
 col3, col4, col5 = st.columns(3)
 
@@ -167,8 +166,8 @@ with col3:
     
     st.warning("""
     **📉 추이 가이드: 왜 이런 변화가 생겼을까?**
-    * **우하향(↘, 긍정):** 지역사회의 인프라 확충이나 교육 정책이 올바르게 작동하여 청소년 마음건강이 개선되고 있습니다.
-    * **우상향(↗, 부정):** 코로나 이후 일상 회복 과정의 부작용, 사교육 심화, 혹은 새로운 디지털 위험(사이버 폭력 등)이 급증하여 악영향을 미치고 있음을 의미합니다.
+    * **우하향(↘, 긍정):** 지역사회의 인프라 확충과 교육 정책이 올바르게 작동하고 있다는 뜻입니다.
+    * **우상향(↗, 부정):** 코로나 이후 일상 회복의 부작용, 학업 스트레스, 신종 사이버 범죄 등이 악영향을 미치고 있음을 의미합니다.
     """)
 
 with col4:
@@ -187,8 +186,8 @@ with col4:
     
     st.info("""
     **🍩 분포 가이드: 혜택은 공평한가?**
-    * 차트 조각들이 비교적 균등하다면 인프라가 고르게 잘 배분된 **긍정적 상태**입니다.
-    * 하나의 큰 조각이 파이를 독차지한다면 특정 학군이나 신도시에만 시설이 쏠린 **인프라 불평등(부정적 상태)**을 나타냅니다.
+    * 차트 조각들이 비슷하게 균등하다면 인프라가 고르게 배분된 **안정적 상태**입니다.
+    * 하나의 큰 조각이 파이를 독차지한다면 특정 지역에만 시설이 쏠린 **인프라 불평등(부정적 상태)**을 나타냅니다.
     """)
 
 with col5:
@@ -207,6 +206,6 @@ with col5:
         
     st.success("""
     **🌌 상관관계 가이드: 안전망은 진짜 효과가 있을까?**
-    * 각 점은 하나의 시/도를 의미합니다. 점들의 흐름이 **오른쪽 아래(↘)로 향할수록 긍정적**입니다. 
-    * 즉, "오른쪽(안전망이 많음)으로 갈수록, 아래(스트레스/우울감이 낮음)에 위치한다"는 가설이 성립하며, 이는 예산을 들여 청소년 인프라를 지어야 하는 가장 완벽한 논리적 근거가 됩니다.
+    * 전체적인 점들의 흐름이 **오른쪽 아래(↘)로 향할수록 긍정적**입니다. 
+    * "오른쪽(안전망이 많음)으로 갈수록, 아래(스트레스/우울감이 낮음)에 위치한다"는 강력한 논리적 근거가 됩니다.
     """)
