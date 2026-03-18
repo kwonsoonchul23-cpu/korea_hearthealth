@@ -4,3 +4,4 @@ pydeck
 plotly
 geopandas
 shapely
+altair==4.2.2
