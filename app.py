@@ -60,13 +60,13 @@ col1, col2 = st.columns([6, 4])
 with col1:
     st.subheader(f"🗺️ {selected_region} 3D 위험 구역 및 안전망 시각화")
     
-    # 🚨 [새로운 기능] 사용자가 직접 껐다 켤 수 있는 인터랙티브 범례 스위치
-    st.markdown("👇 **[상호작용 범례]** 스위치를 클릭해 원하는 데이터만 지도에 띄워보세요.")
+    # 🚨 체크박스로 안전하게 교체!
+    st.markdown("👇 **[상호작용 범례]** 체크박스를 클릭해 원하는 데이터만 지도에 띄워보세요.")
     legend_col1, legend_col2 = st.columns(2)
     with legend_col1:
-        show_danger = st.toggle("🔴 위험 구역 (3D 육각 기둥) 켜기", value=True)
+        show_danger = st.checkbox("🔴 위험 구역 (3D 육각 기둥) 켜기", value=True)
     with legend_col2:
-        show_safe = st.toggle("🔵 청소년 안전망 (파란 마커) 켜기", value=True)
+        show_safe = st.checkbox("🔵 청소년 안전망 (파란 마커) 켜기", value=True)
     
     map_center = region_coords[selected_region]
     zoom_level = 6.5 if selected_region == "전국" else 10.5
@@ -144,7 +144,6 @@ with col2:
         lambda x: '선택됨' if selected_region != "전국" and x[:2] in selected_region else '기타 지역'
     )
     
-    # Plotly 인터랙션 추가: 호버 데이터 명확화, 색상 범례 생성
     fig_bar = px.bar(mind_sorted, x="비율(%)", y="지역명", orientation='h', color='선택 지역', 
                      color_discrete_map={'선택됨': '#e74c3c', '기타 지역': '#bdc3c7'})
     fig_bar.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=400, legend=dict(title="지역 범례", yanchor="bottom", y=0.01, xanchor="right", x=0.99))
