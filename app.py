@@ -119,7 +119,6 @@ with st.sidebar:
     st.markdown('<div style="text-align:center; font-size:1.2rem; font-weight:700; color:#5865F2;">Youth Canvas</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center; font-size:0.8rem; color:#8F95B2; margin-bottom:20px;">청소년 인프라·마음건강 분석</div>', unsafe_allow_html=True)
     
-    # 에러의 원인이었던 st.divider()를 안전한 명령어로 교체!
     st.markdown("---")
     
     region_coords = {
@@ -228,8 +227,9 @@ with tab1:
         bearing=0
     )
 
+    # 🚨 [수정됨] 글자가 전혀 없는 완벽한 다크 지도 적용 (동해 표기 문제 및 시선 분산 해결)
     st.pydeck_chart(pdk.Deck(
-        map_style="mapbox://styles/mapbox/dark-v10",
+        map_style="https://basemaps.cartocdn.com/gl/dark_nolabels-gl-style/style.json", 
         layers=layers,
         initial_view_state=view_state,
         tooltip={"html": "<div style='color:white;'><b>🛡️ 안전망:</b> {시설명}</div>"}
