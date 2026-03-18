@@ -1,6 +1,6 @@
 pandas
 streamlit
-folium
+pydeck
 streamlit-folium
 altair<5
 plotly
