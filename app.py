@@ -17,7 +17,7 @@ st.set_page_config(page_title="Youth Canvas: 청소년 안전망 찾기", layout
 MAPBOX_TOKEN = st.secrets.get("MAPBOX_TOKEN", "")
 PUBLIC_DATA_API_KEY = st.secrets.get("PUBLIC_DATA_API_KEY", "")
 # 🚨 [추가] 네이버 클라우드 플랫폼에서 발급받은 Maps Client ID를 secrets에 넣어주세요.
-NAVER_CLIENT_ID = st.secrets.get("NAVER_CLIENT_ID", "") 
+NAVER_CLIENT_ID = st.secrets.get("c972po5x27", "") 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 2. 데이터 로더 및 검색 엔진 함수
