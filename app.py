@@ -70,7 +70,6 @@ def get_korea_geometry():
     except:
         return None, None
 
-# (샘플용) 위협 요인 데이터 생성기
 def generate_threat_data(center_lat, center_lon, num_points, threat_type):
     np.random.seed(hash(threat_type) % 10000)
     df = pd.DataFrame({
@@ -87,7 +86,7 @@ hotline_df = load_hotline_contacts()
 mask_json, kr_geom = get_korea_geometry()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 3. 테마 및 반응형 CSS (모바일 가독성 최적화)
+# 3. 테마 및 반응형 CSS 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def get_theme_config(theme_choice):
     if theme_choice == "다크 모드":
@@ -121,21 +120,18 @@ with st.sidebar:
     region_list = ["전국"] + list(fac_df['sido'].unique())
     selected_region = st.selectbox("📍 지역 선택", region_list)
     type_list = fac_df['facility_type'].unique()
-    selected_types = st.multiselect("🏢 보호 기관 유형", type_list, default=list(type_list))
+    selected_types = st.multiselect("🏢 보호 기관 유형", list(type_list), default=list(type_list))
 
-# 🚨 핵심 CSS: 모바일에서 글자가 깨지지 않게 (keep-all) & 텍스트 생략 (ellipsis) 적용
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* 전체 텍스트 줄바꿈 방지 (한국어 어절 단위 바꿈) */
 html, body, [class*="css"], p, div, h1, h2, h3, span {{
     font-family: 'Inter', sans-serif;
     word-break: keep-all; 
     overflow-wrap: break-word;
 }}
 
-/* 반응형 KPI 카드 */
 .kpi-card {{
     background: {theme['card_bg']};
     border: 1px solid rgba(128, 128, 128, 0.2); 
@@ -165,7 +161,7 @@ html, body, [class*="css"], p, div, h1, h2, h3, span {{
 .gradient-title {{
     background: linear-gradient(120deg, #5865F2 0%, #00F0FF 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    font-size: clamp(1.5rem, 4vw, 2.2rem); /* 모바일에서는 작게, PC에서는 크게 */
+    font-size: clamp(1.5rem, 4vw, 2.2rem); 
     font-weight: 700; 
     margin-bottom: 0.2rem;
 }}
@@ -177,8 +173,6 @@ html, body, [class*="css"], p, div, h1, h2, h3, span {{
     padding-left: 10px; 
     border-left: 4px solid #5865F2; 
 }}
-
-/* 툴팁 및 익스팬더(가이드) 모바일 텍스트 최적화 */
 .guide-box {{
     background-color: rgba(88, 101, 242, 0.1);
     border-radius: 8px;
@@ -218,20 +212,25 @@ with tab1:
     st.markdown('<div class="section-header">우리 동네 안전망 및 위험 요인 분석</div>', unsafe_allow_html=True)
     st.caption("💡 지도에 표시된 마커에 마우스를 올리면 상세 정보를 볼 수 있습니다. (우클릭+드래그로 3D 회전)")
     
-    # 위협 요인 선택 필터 (모바일 환경을 고려해 멀티셀렉트로 압축)
     threat_list = ["유해업소 밀집", "교통사고 다발", "치안/범죄 취약"]
-    selected_threats = st.multiselect("⚠️ 지도에 표시할 위험 요인 (Beta)", threat_list, placeholder="위험 요인을 선택하면 지도에 3D 기둥으로 나타납니다.")
+    
+    # 🚨 [수정됨] placeholder 옵션을 삭제하고 모든 버전에서 호환되는 help(툴팁) 옵션으로 대체했습니다.
+    selected_threats = st.multiselect(
+        "⚠️ 지도에 표시할 위험 요인 (Beta)", 
+        threat_list, 
+        help="위험 요인을 선택하면 지도에 3D 기둥으로 나타납니다."
+    )
 
     map_center = [36.5, 127.5] if selected_region == "전국" else [fac_filtered['lat'].mean(), fac_filtered['lon'].mean()]
     if pd.isna(map_center[0]): map_center = [37.5665, 126.9780]
     
     layers = []
     
-    # 1. 암막 레이어 (한국 이외 차단)
+    # 암막 레이어 (한국 이외 차단)
     if mask_json is not None:
         layers.append(pdk.Layer("GeoJsonLayer", mask_json, get_fill_color=theme['mask_color'], stroked=False, pickable=False))
 
-    # 2. 선택된 위협 요인 레이어 (Hexagon 3D)
+    # 선택된 위협 요인 레이어 (Hexagon 3D)
     for threat in selected_threats:
         t_df = generate_threat_data(map_center[0], map_center[1], 300 if selected_region=="전국" else 50, threat)
         if kr_geom is not None:
@@ -252,7 +251,7 @@ with tab1:
             pickable=False
         ))
 
-    # 3. 안전망 기관 마커 레이어
+    # 안전망 기관 마커 레이어
     fac_chart_data = fac_filtered.to_dict(orient='records')
     layers.append(pdk.Layer(
         "ScatterplotLayer",
@@ -275,7 +274,6 @@ with tab1:
 
     st.pydeck_chart(pdk.Deck(map_provider="mapbox", map_style=theme['map_style'], api_keys={'mapbox': MAPBOX_TOKEN}, layers=layers, initial_view_state=view_state, tooltip={"html": tooltip_html}))
 
-    # 🚨 긍정/부정 해석 가이드라인 (모바일 최적화 UI 적용)
     with st.expander("📊 지도 데이터 팩트체크 및 해석 가이드"):
         st.markdown("""
         <div class="guide-box">
