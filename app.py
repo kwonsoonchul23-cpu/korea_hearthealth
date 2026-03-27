@@ -21,7 +21,6 @@ MAPBOX_TOKEN = st.secrets.get("MAPBOX_TOKEN", "")
 @st.cache_data
 def load_facilities_data():
     # 실제로는 pd.read_csv("facilities_points.csv") 를 사용합니다.
-    # MVP 테스트를 위한 샘플 데이터 생성
     data = pd.DataFrame({
         "facility_name": ["서울시립청소년센터", "강남구청소년상담복지센터", "마포구청소년쉼터", "부산해운대청소년수련관", "제주청소년상담센터"],
         "facility_type": ["청소년 수련시설", "청소년상담복지센터", "청소년쉼터", "청소년 수련시설", "청소년상담복지센터"],
@@ -31,11 +30,10 @@ def load_facilities_data():
         "lat": [37.5665, 37.5172, 37.5662, 35.1631, 33.4890],
         "lon": [126.9780, 127.0473, 126.9016, 129.1636, 126.4983]
     })
-    # 유형별 색상 매핑
     color_map = {
-        "청소년 수련시설": [50, 150, 255, 200],   # 파랑
-        "청소년상담복지센터": [50, 255, 150, 200], # 초록
-        "청소년쉼터": [255, 150, 50, 200]          # 주황
+        "청소년 수련시설": [50, 150, 255, 200],   
+        "청소년상담복지센터": [50, 255, 150, 200], 
+        "청소년쉼터": [255, 150, 50, 200]          
     }
     data['color'] = data['facility_type'].map(color_map)
     return data
@@ -116,8 +114,9 @@ with st.sidebar:
     region_list = ["전국"] + list(fac_df['sido'].unique())
     selected_region = st.selectbox("📍 지역 선택", region_list)
     
+    # 🚨 [에러 수정] 넘파이 배열을 리스트로 명시적 변환
     type_list = fac_df['facility_type'].unique()
-    selected_types = st.multiselect("🏢 기관 유형 선택", type_list, default=type_list)
+    selected_types = st.multiselect("🏢 기관 유형 선택", type_list, default=list(type_list))
     
     st.markdown("---")
     show_danger = st.checkbox("🔴 지역 위험 신호 보기 (Beta)", value=False, help="준비 중인 데이터입니다. 주변의 위험 구역 척도를 표시합니다.")
@@ -208,7 +207,6 @@ def render_map_tab():
 
     view_state = pdk.ViewState(longitude=map_center[1], latitude=map_center[0], zoom=6.8 if selected_region=="전국" else 10.5, min_zoom=6.8, max_zoom=15.0, pitch=40, bearing=0)
 
-    # 툴팁 HTML 포맷 구성
     tooltip_html = """
     <div style='background-color:#2C3E50; padding:10px; border-radius:5px; color:white;'>
         <h4 style='margin:0 0 5px 0;'>{facility_name}</h4>
